@@ -1,0 +1,266 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{geometry}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\geometry{margin=1in}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  frame=single,
+  tabsize=2,
+  commentstyle=\color{green!60!black},
+  keywordstyle=\color{blue!80!black}\bfseries,
+  stringstyle=\color{red!70!black},
+  identifierstyle=\color{black},
+  backgroundcolor=\color{gray!5},
+  rulecolor=\color{gray!30},
+  keywords={export, interface, class, implements, private, public, const, return, if, throw, new, static, constructor, this, function, enum, type, extends},
+  morecomment=[l]{//},
+  morestring=[b]',
+  morestring=[b]"
+}
+
+\title{\textbf{Entregable: Patrones de Dise\~no}\\
+Sistema de Recomendaci\'on de Pel\'iculas con Next.js y TypeScript}
+\author{Marcos Velasquez Vela}
+\date{18 de noviembre de 2025}
+
+\begin{document}
+
+\maketitle
+
+\section{Descripci\'on del Proyecto}
+
+Sistema de recomendaci\'on de pel\'iculas para una aplicaci\'on tipo Netflix. Este sistema permite gestionar perfiles de usuario, crear cat\'alogos de pel\'iculas, y recomendar contenido seg\'un diferentes estrategias. Se implementa en TypeScript con Next.js, aplicando arquitectura limpia y 3 patrones de dise\~no.
+
+\section{Repositorio del Proyecto}
+
+El c\'odigo fuente est\'a disponible en GitHub:\\
+\url{https://github.com/marcos-velasquez/netflix-mini.git}
+
+\section{Proyecto: Sistema Netflix Mini}
+
+Sistema que gestiona pel\'iculas, recomendaciones personalizadas y b\'usqueda. Implementado en TypeScript con Next.js, aplicando 3 patrones de dise\~no.
+
+\section{Estructura y C\'odigo del Proyecto}
+
+\subsection{Tipos Base (movie.ts)}
+
+\begin{lstlisting}
+export enum MovieGenre {
+  DRAMA = 'Drama',
+  ACTION = 'Accion',
+  HORROR = 'Terror',
+  COMEDY = 'Comedia'
+}
+
+export interface Movie {
+  id: string;
+  title: string;
+  genre: MovieGenre;
+  rating: number;
+  popularity: number;
+  year: number;
+  description: string;
+}
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  favoriteGenres: MovieGenre[];
+  watchHistory: string[];
+}
+\end{lstlisting}
+
+\subsection{Patr\'on Factory Method}
+
+\begin{lstlisting}
+export interface MovieFactory {
+  createMovie(id: string, title: string, rating: number,
+              popularity: number, year: number, desc: string): Movie;
+}
+
+export class DramaMovieFactory implements MovieFactory {
+  createMovie(id: string, title: string, rating: number,
+              popularity: number, year: number, desc: string): Movie {
+    return { id, title, genre: MovieGenre.DRAMA, rating,
+             popularity, year, description: desc };
+  }
+}
+
+export class MovieFactoryManager {
+  private factories = new Map<MovieGenre, MovieFactory>([
+    [MovieGenre.DRAMA, new DramaMovieFactory()],
+    [MovieGenre.ACTION, new ActionMovieFactory()],
+    [MovieGenre.HORROR, new HorrorMovieFactory()],
+    [MovieGenre.COMEDY, new ComedyMovieFactory()]
+  ]);
+
+  createMovie(genre: MovieGenre, ...params): Movie {
+    const factory = this.factories.get(genre);
+    if (!factory) throw new Error('No factory');
+    return factory.createMovie(...params);
+  }
+}
+\end{lstlisting}
+
+\subsection{Patr\'on Strategy}
+
+\begin{lstlisting}
+export interface RecommendationStrategy {
+  recommend(movies: Movie[], user: UserProfile, limit?: number): Movie[];
+}
+
+export class GenreRecommendationStrategy
+  implements RecommendationStrategy {
+  recommend(movies: Movie[], user: UserProfile, limit = 5): Movie[] {
+    const unwatched = movies.filter((m) =>
+      !user.watchHistory.includes(m.id));
+    return unwatched.sort((a, b) => {
+      const aFav = user.favoriteGenres.includes(a.genre) ? 1 : 0;
+      const bFav = user.favoriteGenres.includes(b.genre) ? 1 : 0;
+      return bFav - aFav || b.rating - a.rating;
+    }).slice(0, limit);
+  }
+}
+
+export class RatingRecommendationStrategy
+  implements RecommendationStrategy {
+  recommend(movies: Movie[], user: UserProfile, limit = 5): Movie[] {
+    const unwatched = movies.filter((m) =>
+      !user.watchHistory.includes(m.id));
+    return unwatched.sort((a, b) => b.rating - a.rating)
+      .slice(0, limit);
+  }
+}
+
+export class RecommendationContext {
+  constructor(private strategy: RecommendationStrategy) {}
+  setStrategy(strategy: RecommendationStrategy): void {
+    this.strategy = strategy;
+  }
+  execute(movies: Movie[], user: UserProfile, limit?: number): Movie[] {
+    return this.strategy.recommend(movies, user, limit);
+  }
+}
+\end{lstlisting}
+
+\subsection{Patr\'on Facade}
+
+\begin{lstlisting}
+export type RecommendationType = 'genre' | 'rating' | 'popularity';
+
+export class NetflixFacade {
+  private movieCatalog: Movie[] = [];
+  private movieFactory: MovieFactoryManager;
+  private userService: UserProfileService;
+  private recommendationContext: RecommendationContext;
+
+  constructor() {
+    this.movieFactory = new MovieFactoryManager();
+    this.userService = new UserProfileService();
+    this.recommendationContext = new RecommendationContext(
+      new GenreRecommendationStrategy());
+    this.initializeCatalog();
+  }
+
+  searchMovies(query: string): Movie[] {
+    return this.movieCatalog.filter((m) =>
+      m.title.toLowerCase().includes(query.toLowerCase()));
+  }
+
+  getRecommendations(userId: string, type: RecommendationType,
+                     limit = 5): Movie[] {
+    const user = this.userService.getProfile(userId);
+    if (!user) throw new Error('User not found');
+    const strategies = {
+      genre: GenreRecommendationStrategy,
+      rating: RatingRecommendationStrategy,
+      popularity: PopularityRecommendationStrategy
+    };
+    this.recommendationContext.setStrategy(new strategies[type]());
+    return this.recommendationContext.execute(
+      this.movieCatalog, user, limit);
+  }
+}
+\end{lstlisting}
+
+\subsection{Componente UI}
+
+\begin{lstlisting}
+export default function Home() {
+  const [facade] = useState(() => new NetflixFacade());
+  const [userId, setUserId] = useState('1');
+  const [type, setType] = useState('hybrid');
+
+  const recommendations = useMemo(() =>
+    facade.getRecommendations(userId, type, 6),
+    [facade, userId, type]);
+
+  return (
+    <div>
+      <UserSelector onChange={setUserId} />
+      <StrategyButtons onChange={setType} />
+      <MovieGrid movies={recommendations} />
+    </div>
+  );
+}
+\end{lstlisting}
+
+\section{Explicaci\'on de Patrones}
+
+\subsection{Factory Method (Creacional)}
+Define una interfaz para crear objetos, pero deja que las subclases decidan qu\'e clase instanciar.
+
+\textbf{Uso:} \texttt{MovieFactoryManager} crea pel\'iculas de diferentes g\'eneros usando factories espec\'ificas (\texttt{DramaMovieFactory}, \texttt{ActionMovieFactory}).
+
+\textbf{Ventaja:} Agregar nuevos g\'eneros sin modificar c\'odigo existente.
+
+\subsection{Strategy (Comportamiento)}
+Define una familia de algoritmos intercambiables que pueden ser usados indistintamente.
+
+\textbf{Uso:} \texttt{RecommendationContext} cambia entre estrategias de recomendaci\'on (por g\'enero, rating, popularidad, h\'ibrida) en tiempo de ejecuci\'on.
+
+\textbf{Ventaja:} Elimina condicionales complejos y facilita agregar nuevas estrategias.
+
+\subsection{Facade (Estructural)}
+Proporciona una interfaz simplificada a un sistema complejo.
+
+\textbf{Uso:} \texttt{NetflixFacade} ofrece m\'etodos simples (\texttt{searchMovies()}, \texttt{getRecommendations()}) ocultando la complejidad interna.
+
+\textbf{Ventaja:} Reduce el acoplamiento entre el cliente y los subsistemas.
+
+\section{Ejecuci\'on del Proyecto}
+
+\subsection{Instalaci\'on}
+\begin{verbatim}
+npm install
+\end{verbatim}
+
+\subsection{Iniciar servidor}
+\begin{verbatim}
+npm run dev
+\end{verbatim}
+
+\subsection{Acceso}
+Abrir navegador en: \url{http://localhost:3000}
+
+\section{Funcionalidades}
+
+\begin{itemize}
+  \item Selecci\'on de perfiles de usuario
+  \item Cambio din\'amico de estrategias de recomendaci\'on
+  \item B\'usqueda de pel\'iculas
+  \item Cat\'alogo completo
+\end{itemize}
+
+\textbf{Integraci\'on:} Los tres patrones trabajan juntos. Factory crea las pel\'iculas, Strategy maneja las recomendaciones, y Facade simplifica toda la interacci\'on.
+
+\end{document}
