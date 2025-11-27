@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pdflatex:*)"
+      "Bash(pdflatex:*)",
+      "Bash(npm install:*)",
+      "Bash(tree:*)",
+      "Bash(npm run test:arquitectura:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

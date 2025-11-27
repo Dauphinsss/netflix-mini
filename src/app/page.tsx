@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { NetflixFacade, RecommendationType } from '@/patterns/facade/NetflixFacade';
-import { Movie } from '@/types/movie';
+import { NetflixFacade, RecommendationType } from '@/business/facades/NetflixFacade';
+import { Movie } from '@/data/models/types';
 
 export default function Home() {
   const [netflixFacade] = useState(() => new NetflixFacade());

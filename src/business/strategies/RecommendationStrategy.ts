@@ -1,4 +1,5 @@
-import { Movie, UserProfile } from '@/types/movie';
+// CAPA 2: BUSINESS LAYER - Strategy Pattern (Patrón de Comportamiento)
+import { Movie, UserProfile } from '@/data/models/types';
 
 export interface RecommendationStrategy {
   recommend(movies: Movie[], user: UserProfile, limit?: number): Movie[];

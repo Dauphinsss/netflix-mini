@@ -1,4 +1,5 @@
-import { Movie, MovieGenre } from '@/types/movie';
+// CAPA 2: BUSINESS LAYER - Factory Pattern (Patrón Creacional)
+import { Movie, MovieGenre } from '@/data/models/types';
 
 export interface MovieFactory {
   createMovie(
